@@ -21,8 +21,9 @@ if (!fs.existsSync(DATOS)) {
 const datos = JSON.parse(fs.readFileSync(DATOS, 'utf8'));
 
 const app = express();
+app.set('trust proxy', 1);
 const servidor = http.createServer(app);
-const io = new Server(servidor, { pingInterval: 10000, pingTimeout: 8000 });
+const io = new Server(servidor, { pingInterval: 15000, pingTimeout: 15000 });
 
 function ipLocal() {
   const candidatas = [];
@@ -36,7 +37,21 @@ function ipLocal() {
   return (buena || candidatas[0] || { ip: 'localhost' }).ip;
 }
 const IP = process.env.IP_PUBLICA || ipLocal();
-const urlJugar = () => `http://${IP}:${PUERTO}/jugar?c=${motor.estado.codigo}`;
+
+function urlBase(req) {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  if (req) {
+    const host = (req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+    if (host && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(host)) {
+      const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+      return `${proto}://${host}`;
+    }
+  }
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, '');
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN.replace(/\/+$/, '')}`;
+  return `http://${IP}:${PUERTO}`;
+}
+const urlJugar = (req) => `${urlBase(req)}/jugar?c=${motor.estado.codigo}`;
 
 // ---------- Emisión de estado ----------
 let pendiente = false;
@@ -63,6 +78,7 @@ const motor = new Motor({
 
 // ---------- Rutas ----------
 app.use(express.static(path.join(RAIZ, 'public')));
+app.get('/health', (req, res) => res.status(200).json({ ok: true }));
 app.get('/', (req, res) => res.redirect('/pantalla'));
 app.get('/pantalla', (req, res) => res.sendFile(path.join(RAIZ, 'public', 'pantalla.html')));
 app.get('/moderador', (req, res) => res.sendFile(path.join(RAIZ, 'public', 'moderador.html')));
@@ -75,9 +91,11 @@ app.get('/api/revision', (req, res) => {
   try { res.json(JSON.parse(fs.readFileSync(path.join(RAIZ, 'data', 'juego.json'), 'utf8'))); } catch (e) { res.status(500).json({ error: String(e.message) }); }
 });
 app.get('/api/info', async (req, res) => {
-  const url = urlJugar();
+  const base = urlBase(req);
+  const url = urlJugar(req);
+  const urlCorta = `${base.replace(/^https?:\/\//i, '')}/jugar`;
   const qr = await QRCode.toDataURL(url, { margin: 1, width: 520, color: { dark: '#1a0b3b', light: '#ffffff' } });
-  res.json({ url, urlCorta: `${IP}:${PUERTO}/jugar`, codigo: motor.estado.codigo, qr });
+  res.json({ url, urlCorta, codigo: motor.estado.codigo, qr });
 });
 app.get('/api/datos', (req, res) => {
   // Datos públicos para dibujar: tablero, caminos, personajes y reglas (sin cartas ni respuestas)
@@ -193,9 +211,10 @@ process.on('uncaughtException', (e) => console.error('Error inesperado (el juego
 process.on('unhandledRejection', (e) => console.error('Promesa rechazada (el juego sigue):', e));
 
 servidor.listen(PUERTO, '0.0.0.0', () => {
+  const base = urlBase();
   console.log('\n  🏆 RUMBO AL TROFEO');
-  console.log(`  Pantalla (videobeam): http://localhost:${PUERTO}/pantalla`);
-  console.log(`  Moderador:            http://localhost:${PUERTO}/moderador   (PIN ${PIN})`);
-  console.log(`  Celulares:            http://${IP}:${PUERTO}/jugar`);
+  console.log(`  Pantalla (videobeam): ${base}/pantalla`);
+  console.log(`  Moderador:            ${base}/moderador   (PIN ${PIN})`);
+  console.log(`  Celulares:            ${base}/jugar`);
   console.log(`  Código de la partida: ${motor.estado.codigo}\n`);
 });

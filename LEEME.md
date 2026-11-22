@@ -56,3 +56,13 @@ Si los celulares no abren la página con el Wi-Fi del salón:
 
 ## Pruebas automáticas
 `npm run probar` juega las 107 cartas y 30 partidas al azar para revisar que el motor no falle.
+
+## Despliegue en la nube (Render o Railway)
+Este juego usa **Socket.IO** (WebSockets en tiempo real) y estado en servidor, por lo que requiere un host Node.js persistente como **Render** o **Railway** (no Vercel serverless).
+
+- **Render (1 clic):** abre `https://render.com/deploy?repo=https://github.com/juandortiz09-dotcom/rumboAltrofeo-` (usa `render.yaml` automáticamente).
+- **Railway:** crea un proyecto nuevo en `https://railway.com/new` seleccionando este repositorio de GitHub (usa `railway.json` automáticamente).
+- **Variables opcionales:**
+  - `PIN`: PIN del moderador (por defecto `1234`).
+  - `PUBLIC_URL`: solo si quieres forzar un dominio personalizado; normalmente se detecta automáticamente desde el navegador y el QR se genera en HTTPS.
+- **Tip para el evento:** en el plan gratuito de Render el servicio se duerme tras 15 min sin uso. Abre `/pantalla` unos 2 minutos antes de empezar para despertarlo; mientras la pantalla y el moderador estén abiertos, el servidor se mantiene activo durante toda la partida.
